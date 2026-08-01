@@ -7,7 +7,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Retrieve API key or fallback
-GROQ_API_KEY = os.getenv("GROQ_API_KEY") or "gsk_your_fallback_key_here"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY and "GROQ_API_KEY" in st.secrets:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
 # Initialize Groq Client
 client = Groq(api_key=GROQ_API_KEY)
