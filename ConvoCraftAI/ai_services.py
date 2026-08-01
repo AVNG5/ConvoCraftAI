@@ -25,56 +25,48 @@ def process_meeting_audio(
     custom_hint: str = "",
 ) -> dict:
     """
-    1. Transcribes audio using Groq Whisper Large V3 with explicit language hints.
-    2. Analyzes text using Groq Llama 3.3 70B to generate structured meeting insights in the requested target language.
+    1. Transcribes audio using Groq Whisper Large V3 with auto-detection (prevents 500 errors).
+    2. Translates and structures insights using Groq Llama 3.3 70B into target language.
     """
     try:
-        # Map target languages to Whisper ISO language codes
-        lang_code_map = {
-            "English": "en",
-            "Telugu": "te",
-            "Hindi": "hi"
-        }
-        target_code = lang_code_map.get(language, "en")
-
-        # 1. Transcribe Audio using Whisper-Large-V3
+        # 1. Transcribe Audio using Whisper-Large-V3 (Auto-detect language to avoid Groq 500 errors)
         with open(audio_file_path, "rb") as file:
             transcription = client.audio.transcriptions.create(
                 file=(os.path.basename(audio_file_path), file),
                 model="whisper-large-v3",
-                language=target_code,  # Direct language hint for Whisper
                 response_format="text"
             )
         
         transcript_text = transcription
 
-        # 2. Extract structured meeting intelligence using Llama 3.3 70B
+        # 2. Extract and translate structured meeting intelligence using Llama 3.3 70B
         prompt = f"""
-        You are ConvoCraft AI, an expert meeting assistant.
-        Analyze the following transcript and extract structured insights based on these preferences:
+        You are ConvoCraft AI, an expert multilingual meeting assistant.
+        Analyze the following meeting transcript and produce the structured output strictly in the requested target language.
 
-        CRITICAL LANGUAGE REQUIREMENT:
+        LANGUAGE REQUIREMENT:
         - Target Output Language: {language}
-        - If Target Output Language is 'Telugu', write ALL text values in the JSON output (summary, key_decisions, action item tasks, next_agenda) strictly using Telugu script (తెలుగు).
-        - If Target Output Language is 'Hindi', write ALL text values using Hindi script (हिंदी).
+        - If Target Output Language is 'Telugu', you MUST translate and write ALL text inside the JSON values (summary, key_decisions, tasks, next_agenda) in clean Telugu script (తెలుగు).
+        - If Target Output Language is 'Hindi', write ALL text inside JSON values in Devanagari Hindi script (हिंदी).
+        - If Target Output Language is 'English', write in English.
 
-        User Preferences:
+        USER PREFERENCES:
         - Summary Format: {summary_format}
         - Tone/Persona: {tone}
         - Custom Focus/Guidance: {custom_hint if custom_hint else 'None'}
 
-        Transcript:
+        TRANSCRIPT:
         "{transcript_text}"
 
-        Strict Output Schema (JSON):
+        STRICT OUTPUT SCHEMA (JSON):
         Return ONLY a valid JSON object matching this exact structure without markdown backticks, code blocks, or extra prose:
 
         {{
-          "summary": "Meeting summary adhering strictly to format, tone, and written in {language}",
-          "key_decisions": ["Decision 1 in {language}", "Decision 2 in {language}"],
+          "summary": "Full meeting summary adhering strictly to format, tone, and translated into {language}",
+          "key_decisions": ["Key decision 1 in {language}", "Key decision 2 in {language}"],
           "action_items": [
             {{
-              "task": "Specific task description written in {language}",
+              "task": "Specific task description in {language}",
               "assignee": "Person responsible or 'Unassigned'",
               "deadline": "YYYY-MM-DD or 'Not specified'",
               "priority": "High / Medium / Low"
