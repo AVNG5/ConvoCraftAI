@@ -4,7 +4,7 @@ import streamlit as st
 from groq import Groq
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables for local development
 load_dotenv()
 
 # Get API key from environment variable OR Streamlit secrets
@@ -24,12 +24,25 @@ def process_meeting_audio(
     tone: str = "Technical",
     custom_hint: str = "",
 ) -> dict:
+    """
+    1. Transcribes audio using Groq Whisper Large V3 with explicit language hints.
+    2. Analyzes text using Groq Llama 3.3 70B to generate structured meeting insights in the requested target language.
+    """
     try:
-        # 1. Transcribe Audio using Whisper-Large-V3 (Pass file object directly)
+        # Map target languages to Whisper ISO language codes
+        lang_code_map = {
+            "English": "en",
+            "Telugu": "te",
+            "Hindi": "hi"
+        }
+        target_code = lang_code_map.get(language, "en")
+
+        # 1. Transcribe Audio using Whisper-Large-V3
         with open(audio_file_path, "rb") as file:
             transcription = client.audio.transcriptions.create(
                 file=(os.path.basename(audio_file_path), file),
                 model="whisper-large-v3",
+                language=target_code,  # Direct language hint for Whisper
                 response_format="text"
             )
         
@@ -40,8 +53,12 @@ def process_meeting_audio(
         You are ConvoCraft AI, an expert meeting assistant.
         Analyze the following transcript and extract structured insights based on these preferences:
 
+        CRITICAL LANGUAGE REQUIREMENT:
+        - Target Output Language: {language}
+        - If Target Output Language is 'Telugu', write ALL text values in the JSON output (summary, key_decisions, action item tasks, next_agenda) strictly using Telugu script (తెలుగు).
+        - If Target Output Language is 'Hindi', write ALL text values using Hindi script (हिंदी).
+
         User Preferences:
-        - Target Output Language: {language} (Provide ALL summary text and extracted items in {language})
         - Summary Format: {summary_format}
         - Tone/Persona: {tone}
         - Custom Focus/Guidance: {custom_hint if custom_hint else 'None'}
@@ -53,29 +70,30 @@ def process_meeting_audio(
         Return ONLY a valid JSON object matching this exact structure without markdown backticks, code blocks, or extra prose:
 
         {{
-          "summary": "String (Meeting summary adhering strictly to format, tone, and language)",
-          "key_decisions": ["Decision 1", "Decision 2"],
+          "summary": "Meeting summary adhering strictly to format, tone, and written in {language}",
+          "key_decisions": ["Decision 1 in {language}", "Decision 2 in {language}"],
           "action_items": [
             {{
-              "task": "Specific task description",
+              "task": "Specific task description written in {language}",
               "assignee": "Person responsible or 'Unassigned'",
               "deadline": "YYYY-MM-DD or 'Not specified'",
               "priority": "High / Medium / Low"
             }}
           ],
-          "next_agenda": ["Agenda item 1", "Agenda item 2"]
+          "next_agenda": ["Agenda item 1 in {language}", "Agenda item 2 in {language}"]
         }}
         """
 
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a precise AI meeting assistant that strictly outputs JSON."},
+                {"role": "system", "content": "You are a precise AI meeting assistant that strictly outputs valid JSON objects."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
         )
 
+        # Parse and return JSON response
         return json.loads(response.choices[0].message.content)
 
     except Exception as e:
@@ -87,7 +105,11 @@ def process_meeting_audio(
             "next_agenda": []
         }
 
+
 def chat_with_meeting(summary_text: str, user_question: str) -> str:
+    """
+    Answers user questions based on the meeting summary and context using Groq Llama 3.3.
+    """
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
