@@ -1,13 +1,15 @@
 import os
 import json
+import streamlit as st
 from groq import Groq
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Retrieve API key or fallback
+# Get API key from environment variable OR Streamlit secrets
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
 if not GROQ_API_KEY and "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
@@ -22,15 +24,11 @@ def process_meeting_audio(
     tone: str = "Technical",
     custom_hint: str = "",
 ) -> dict:
-    """
-    1. Transcribes audio using Groq Whisper Large V3.
-    2. Analyzes text using Groq Llama 3.3 70B to generate structured meeting insights.
-    """
     try:
-        # 1. Transcribe Audio using Whisper-Large-V3
+        # 1. Transcribe Audio using Whisper-Large-V3 (Pass file object directly)
         with open(audio_file_path, "rb") as file:
             transcription = client.audio.transcriptions.create(
-                file=(os.path.basename(audio_file_path), file.read()),
+                file=(os.path.basename(audio_file_path), file),
                 model="whisper-large-v3",
                 response_format="text"
             )
@@ -78,7 +76,6 @@ def process_meeting_audio(
             response_format={"type": "json_object"}
         )
 
-        # Parse JSON response
         return json.loads(response.choices[0].message.content)
 
     except Exception as e:
@@ -89,10 +86,8 @@ def process_meeting_audio(
             "action_items": [],
             "next_agenda": []
         }
+
 def chat_with_meeting(summary_text: str, user_question: str) -> str:
-    """
-    Answers user questions based on the meeting summary and context using Groq Llama 3.3.
-    """
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
