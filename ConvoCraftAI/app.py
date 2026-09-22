@@ -5,7 +5,7 @@ import json
 import tempfile
 import os
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 import ai_services  # Your Groq AI service module
 import extra_streamlit_components as stx
 
@@ -214,6 +214,7 @@ if st.session_state.get("user") is None and session_user_email:
             "default_summary_format": user[5],
             "default_tone": user[6]
         }
+        st.rerun()
 
 # ==========================================
 # 3. SIDEBAR THEME TOGGLE (Rendered for everyone)
@@ -335,7 +336,8 @@ if st.session_state.get("user") is None:
                 user_data = authenticate_user(login_email, login_password)
                 if user_data:
                     st.session_state["user"] = user_data
-                    cookie_manager.set("convocraft_user", user_data["email"], key="set_user_cookie", expires_at=None)
+                    expiry_date = datetime.now() + timedelta(days=30)
+                    cookie_manager.set("convocraft_user", user_data["email"], key="set_user_cookie", expires_at=expiry_date)
                     st.success(f"Welcome back, {user_data['name']}!")
                     st.rerun()
                 else:
