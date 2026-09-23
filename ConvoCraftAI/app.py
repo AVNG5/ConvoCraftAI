@@ -496,7 +496,7 @@ elif nav_choice == "🎤 Upload & Process":
         if uploaded_file is None:
             st.error("Please upload an MP3 or WAV file before processing.")
         else:
-            with st.spinner("Processing audio with Groq Whisper & Llama 3.3 AI..."):
+            with st.spinner("Processing audio with Groq Whisper & GPT-OSS 20B AI..."):
                 file_extension = uploaded_file.name.split('.')[-1]
                 with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
@@ -510,6 +510,14 @@ elif nav_choice == "🎤 Upload & Process":
                         tone=selected_tone,
                         custom_hint=custom_hint
                     )
+
+                    # Check whether AI processing actually succeeded
+                    if ai_output.get("success") is False:
+                        st.error(
+                            "AI processing failed. The meeting was NOT saved.\n\n"
+                            f"Error: {ai_output.get('error', 'Unknown Groq error')}"
+                        )
+                        st.stop()
 
                     proc_summary = ai_output.get("summary", "")
                     proc_decisions = ai_output.get("key_decisions", [])
