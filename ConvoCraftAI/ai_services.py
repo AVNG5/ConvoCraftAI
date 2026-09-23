@@ -29,7 +29,7 @@ def process_meeting_audio(
 ) -> dict:
     """
     1. Transcribes audio using Groq Whisper Large V3.
-    2. Analyzes text using Groq Llama 3.1 8B Instant to generate structured meeting insights.
+    2. Analyzes text using Groq GPT-OSS 20B to generate structured meeting insights.
     """
     try:
         # 1. Transcribe Audio using Whisper-Large-V3
@@ -42,7 +42,7 @@ def process_meeting_audio(
         
         transcript_text = transcription
 
-        # 2. Extract structured meeting intelligence using Llama 3.1 8B Instant
+        # 2. Extract structured meeting intelligence using GPT-OSS 20B
         prompt = f"""
         You are ConvoCraft AI, an expert meeting assistant.
         Analyze the following transcript and extract structured insights based on these preferences:
@@ -75,7 +75,7 @@ def process_meeting_audio(
         """
 
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[
                 {"role": "system", "content": "You are a precise AI meeting assistant that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
@@ -84,12 +84,16 @@ def process_meeting_audio(
         )
 
         # Parse JSON response
-        return json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content)
+        result["success"] = True
+        return result
 
     except Exception as e:
         print(f"Error processing audio with Groq: {e}")
         return {
-            "summary": f"Failed to process meeting audio with Groq. Error: {e}",
+            "success": False,
+            "error": str(e),
+            "summary": "",
             "key_decisions": [],
             "action_items": [],
             "next_agenda": []
@@ -98,11 +102,11 @@ def process_meeting_audio(
 
 def chat_with_meeting(summary_text: str, user_question: str) -> str:
     """
-    Answers user questions based on the meeting summary and context using Groq Llama 3.1.
+    Answers user questions based on the meeting summary and context using Groq GPT-OSS 20B.
     """
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system",
