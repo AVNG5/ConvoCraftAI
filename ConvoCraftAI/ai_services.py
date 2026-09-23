@@ -104,7 +104,7 @@ def chat_with_meeting(summary_text: str, user_question: str) -> str:
     """
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
