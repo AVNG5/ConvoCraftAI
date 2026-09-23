@@ -4,14 +4,17 @@ import streamlit as st
 from groq import Groq
 from dotenv import load_dotenv
 
-# Load environment variables for local development
+# Load environment variables (for local development)
 load_dotenv()
 
-# Get API key from environment variable OR Streamlit secrets
+# Safely retrieve the Groq API key across local (.env) and Streamlit Cloud (st.secrets)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GROQ_API_KEY and "GROQ_API_KEY" in st.secrets:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+if not GROQ_API_KEY:
+    try:
+        GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
+    except Exception:
+        GROQ_API_KEY = None
 
 # Initialize Groq Client
 client = Groq(api_key=GROQ_API_KEY)
@@ -25,67 +28,62 @@ def process_meeting_audio(
     custom_hint: str = "",
 ) -> dict:
     """
-    1. Transcribes audio using Groq Whisper Large V3 with auto-detection (prevents 500 errors).
-    2. Translates and structures insights using Groq Llama 3.3 70B into target language.
+    1. Transcribes audio using Groq Whisper Large V3.
+    2. Analyzes text using Groq Llama 3.1 8B Instant to generate structured meeting insights.
     """
     try:
-        # 1. Transcribe Audio using Whisper-Large-V3 (Auto-detect language to avoid Groq 500 errors)
+        # 1. Transcribe Audio using Whisper-Large-V3
         with open(audio_file_path, "rb") as file:
             transcription = client.audio.transcriptions.create(
-                file=(os.path.basename(audio_file_path), file),
+                file=(os.path.basename(audio_file_path), file.read()),
                 model="whisper-large-v3",
                 response_format="text"
             )
         
         transcript_text = transcription
 
-        # 2. Extract and translate structured meeting intelligence using Llama 3.3 70B
+        # 2. Extract structured meeting intelligence using Llama 3.1 8B Instant
         prompt = f"""
-        You are ConvoCraft AI, an expert multilingual meeting assistant.
-        Analyze the following meeting transcript and produce the structured output strictly in the requested target language.
+        You are ConvoCraft AI, an expert meeting assistant.
+        Analyze the following transcript and extract structured insights based on these preferences:
 
-        LANGUAGE REQUIREMENT:
-        - Target Output Language: {language}
-        - If Target Output Language is 'Telugu', you MUST translate and write ALL text inside the JSON values (summary, key_decisions, tasks, next_agenda) in clean Telugu script (తెలుగు).
-        - If Target Output Language is 'Hindi', write ALL text inside JSON values in Devanagari Hindi script (हिंदी).
-        - If Target Output Language is 'English', write in English.
-
-        USER PREFERENCES:
+        User Preferences:
+        - Target Output Language: {language} (Provide ALL summary text and extracted items in {language})
         - Summary Format: {summary_format}
         - Tone/Persona: {tone}
         - Custom Focus/Guidance: {custom_hint if custom_hint else 'None'}
 
-        TRANSCRIPT:
+        Transcript:
         "{transcript_text}"
 
-        STRICT OUTPUT SCHEMA (JSON):
+        Strict Output Schema (JSON):
         Return ONLY a valid JSON object matching this exact structure without markdown backticks, code blocks, or extra prose:
 
         {{
-          "summary": "Full meeting summary adhering strictly to format, tone, and translated into {language}",
-          "key_decisions": ["Key decision 1 in {language}", "Key decision 2 in {language}"],
+          "summary": "String (Meeting summary adhering strictly to format, tone, and language)",
+          "key_decisions": ["Decision 1", "Decision 2"],
           "action_items": [
             {{
-              "task": "Specific task description in {language}",
+              "task": "Specific task description",
               "assignee": "Person responsible or 'Unassigned'",
               "deadline": "YYYY-MM-DD or 'Not specified'",
               "priority": "High / Medium / Low"
             }}
           ],
-          "next_agenda": ["Agenda item 1 in {language}", "Agenda item 2 in {language}"]
+          "next_agenda": ["Agenda item 1", "Agenda item 2"]
         }}
         """
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a precise AI meeting assistant that strictly outputs valid JSON objects."},
+                {"role": "system", "content": "You are a precise AI meeting assistant that strictly outputs JSON."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
         )
 
-        # Parse and return JSON response
+        # Parse JSON response
         return json.loads(response.choices[0].message.content)
 
     except Exception as e:
@@ -100,7 +98,7 @@ def process_meeting_audio(
 
 def chat_with_meeting(summary_text: str, user_question: str) -> str:
     """
-    Answers user questions based on the meeting summary and context using Groq Llama 3.3.
+    Answers user questions based on the meeting summary and context using Groq Llama 3.1.
     """
     try:
         response = client.chat.completions.create(
